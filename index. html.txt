@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Malla Interactiva – Ingeniería Industrial</title>
+  <!-- Google Font elegante -->
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --celeste: #00bfff;
+      --celeste-soft: #00bfff20;
+      --gris: #6b7280;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: #f8fcff;
+      color: #333;
+      padding: 24px;
+    }
+    h1 {
+      color: var(--celeste);
+      font-weight: 700;
+      margin-bottom: 4px;
+    }
+    h2 {
+      margin: 0 0 12px;
+      color: var(--celeste);
+      font-weight: 600;
+    }
+    p#ponderado {
+      font-weight: 600;
+      color: var(--celeste);
+      margin: 8px 0 24px;
+      font-size: 1.1rem;
+    }
+
+    /* --- Grid de ciclos y cursos --- */
+    .ciclo { margin-bottom: 40px; }
+    .cursos {
+      display: grid;
+      gap: 14px;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    }
+
+    .curso {
+      background: #fff;
+      border: 2px solid var(--celeste);
+      border-radius: 14px;
+      padding: 14px 16px;
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease;
+      position: relative;
+    }
+    .curso:hover { box-shadow: 0 4px 10px #0001; transform: translateY(-2px); }
+    .curso:active { transform: scale(.97); }
+
+    /* Estado aprobado */
+    .curso.aprobado {
+      background: var(--celeste-soft);
+      text-decoration: line-through;
+      opacity: .8;
+    }
+    .curso .nombre { font-weight: 600; }
+    .curso .creditos { font-size: .8rem; color: var(--gris); }
+    .curso .nota { margin-top: 4px; font-size: .85rem; color: var(--celeste); font-weight: 600; }
+
+    /* Modal */
+    #modal {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,.55);
+      display: none; align-items: center; justify-content: center;
+      z-index: 50;
+    }
+    #modal-box {
+      width: 320px; background: #fff; border-radius: 16px; padding: 24px; animation: pop .25s ease forwards;
+    }
+    @keyframes pop { from { transform: scale(.85); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    #modal-box h3 { margin-top: 0; color: var(--celeste); font-weight: 600; }
+    .field { margin-bottom: 18px; }
+    input[type="number"] { width: 100%; padding: 10px 12px; border: 2px solid var(--celeste); border-radius: 8px; font-family: inherit; font-size: 1rem; }
+    .actions { text-align: right; display: flex; gap: 10px; justify-content: flex-end; }
+    button {
+      border: none; cursor: pointer; font-family: inherit; padding: 10px 16px; border-radius: 8px; font-weight: 600;
+    }
+    .btn-sec { background: #e5e7eb; }
+    .btn-pri { background: var(--celeste); color: #fff; }
+  </style>
+</head>
+<body>
+  <h1>Malla Interactiva – Ing. Industrial UNP</h1>
+  <p id="ponderado">Ponderado acumulado: -</p>
+  <div id="malla"></div>
+
+  <!-- Modal Nota -->
+  <div id="modal" onclick="cerrarModal(event)">
+    <div id="modal-box" onclick="event.stopPropagation()">
+      <h3 id="modal-title"></h3>
+      <div class="field">
+        <label>Nota (0‑20):</label>
+        <input type="number" id="nota-input" min="0" max="20" />
+      </div>
+      <div class="actions">
+        <button class="btn-sec" onclick="cerrarModal()">Cancelar</button>
+        <button class="btn-pri" onclick="guardarNota()">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* =================== Datos de los cursos =================== */
+    const cursos = [
+      // --- Ciclo I ---
+      { id: 'MA1408', nombre: 'Matemática Básica', ciclo: 1, creditos: 4 },
+      { id: 'ED1297', nombre: 'Metodología del Estudio', ciclo: 1, creditos: 2 },
+      { id: 'SI1447', nombre: 'Algoritmos', ciclo: 1, creditos: 3 },
+      { id: 'MA1470', nombre: 'Geometría Analítica', ciclo: 1, creditos: 3 },
+      { id: 'II1334', nombre: 'Dibujo de Ingeniería', ciclo: 1, creditos: 3 },
+      { id: 'II1213', nombre: 'Intro a Ing. Industrial', ciclo: 1, creditos: 2 },
+      { id: 'ED1331', nombre: 'Comunicación', ciclo: 1, creditos: 2 },
+      { id: 'ED1292', nombre: 'Actividad Deportiva', ciclo: 1, creditos: 2 },
+      // --- Ciclo II (ejemplo) ---
+      { id: 'FI1363', nombre: 'Física del Universo', ciclo: 2, creditos: 3 },
+      { id: 'QU1363', nombre: 'Química General', ciclo: 2, creditos: 3 },
+      { id: 'CB1324', nombre: 'Biología Ambiental', ciclo: 2, creditos: 3 },
+      { id: 'CS1286', nombre: 'Filosofía y Ética', ciclo: 2, creditos: 2 },
+      { id: 'SI1361', nombre: 'Programación', ciclo: 2, creditos: 3 },
+      // ... Añade aquí los ciclos restantes III‑X con sus créditos
+    ];
+
+    /* =================== Estado / localStorage =================== */
+    let notas = JSON.parse(localStorage.getItem('notas‑malla')) || {}; // { id: {nota: N} }
+    let cursoSeleccionado = null;
+
+    /* =================== Render de la malla =================== */
+    function renderMalla() {
+      const cont = document.getElementById('malla');
+      cont.innerHTML = '';
+      let sumaPonderada = 0, sumaCreditos = 0;
+
+      for (let ciclo = 1; ciclo <= 10; ciclo++) {
+        const lista = cursos.filter(c => c.ciclo === ciclo);
+        if (!lista.length) continue;
+
+        const sec = document.createElement('section');
+        sec.className = 'ciclo';
+        sec.innerHTML = `<h2>Ciclo ${ciclo}</h2>`;
+
+        const grid = document.createElement('div');
+        grid.className = 'cursos';
+
+        lista.forEach(c => {
+          const nota = notas[c.id]?.nota;
+          if (nota && nota >= 11) {
+            sumaCreditos += c.creditos;
+            sumaPonderada += nota * c.creditos;
+          }
+
+          const card = document.createElement('div');
+          card.className = 'curso' + (nota >= 11 ? ' aprobado' : '');
+          card.onclick = () => abrirModal(c);
+          card.innerHTML = `
+            <div class="nombre">${c.nombre}</div>
+            <div class="creditos">${c.creditos} créditos</div>
+            ${nota ? `<div class="nota">Nota: ${nota}</div>` : ''}
+          `;
+          grid.appendChild(card);
+        });
+
+        sec.appendChild(grid);
+        cont.appendChild(sec);
+      }
+
+      const ponderado = sumaCreditos ? (sumaPonderada / sumaCreditos).toFixed(2) : '-';
+      document.getElementById('ponderado').textContent = `Ponderado acumulado: ${ponderado}`;
+    }
+
+    /* =================== Modal =================== */
+    function abrirModal(c) {
+      cursoSeleccionado = c;
+      document.getElementById('modal-title').textContent = c.nombre;
+      document.getElementById('nota-input').value = notas[c.id]?.nota || '';
+      document.getElementById('modal').style.display = 'flex';
+    }
+    function cerrarModal() {
+      document.getElementById('modal').style.display = 'none';
+    }
+    function cerrarModalClickFuera(e) { if (e.target.id === 'modal') cerrarModal(); }
+    function guardarNota() {
+      const val = parseFloat(document.getElementById('nota-input').value);
+      if (!isNaN(val)) {
+        notas[cursoSeleccionado.id] = { nota: val };
+        localStorage.setItem('notas‑malla', JSON.stringify(notas));
+        renderMalla();
+        cerrarModal();
+      }
+    }
+    window.cerrarModal = cerrarModal; // para usar en html inline
+    window.guardarNota = guardarNota;
+    window.cerrarModalClickFuera = cerrarModalClickFuera;
+
+    renderMalla();
+  </script>
+</body>
+</html>
